@@ -1,0 +1,30 @@
+# for linux 
+*.swp
+
+# for ros1 catkin workspace
+build/
+devel/
+install/
+.catkin_workspace
+
+# for ros2 colcon workspace
+build/
+install/
+
+# python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+
+# for vscode
+.vscode/*
+*.code-workspace
+
+# for clion & pycharm
+.idea/
