@@ -20,7 +20,7 @@ void print_thread_cb()
 
 
 /**
- * @brief 案例函数1，演示线程的创建、分离函数的使用。
+ * @brief 案例1，演示线程的创建、分离函数的使用。
  * 
  * @note 思考下面几个问题：
  * 
@@ -33,10 +33,13 @@ void print_thread_cb()
  * 
  * 3. 当一个线程detach之后，线程还能恢复么？
  *    不能恢复，线程一旦detach，就不再受std::thread的管理了，无法再调用join或detach。
+ * detach之后，线程的所有权和控制权被转移到cpp运行时库，它会保证线程的相关资源在线程推出后能够被正确地回收。
+ * 参考unix的守护进程概念，这样被分离的线程可以被称作 **守护线程**。
  * 
  * 4. 什么时候使用join，什么时候使用detach？
  *    使用join可以等待线程完成，适用于需要等待线程执行完毕的情况，比如需要获取线程的返回值或需要确保线程执行完毕后再继续执行主线程的代码。
  *    使用detach可以让线程在后台运行，不需要等待线程完成，适用于不需要获取线程返回值或不需要确保线程执行完毕的情况。如资源监控、日志记录等。
+ * 简而言之，detach适合两种场景：1.需要长时间在后台运行（通常会贯穿整个进程的生命） 2.第二种场景则是“即用即忘”的任务。
  *
  * 5. 如果detach了一个线程，主线程退出时，子线程会强制退出吗？
  *    是的，如果主线程退出时，子线程仍然在运行，子线程会被强制退出。这可能会导致资源泄漏或数据不一致等问题，所以在设计多线程程序时，需要注意资源的释放和数据的一致性。
@@ -62,7 +65,7 @@ int example1()
 
 
 /**
- * @brief 案例函数2，演示joinable()函数的使用。
+ * @brief 案例2，演示joinable()函数的使用。
  * @note 思考下面几个问题：
  * 1. joinable()函数的真实含义是什么？
  *   joinable()函数用于检查线程是否被操作过，如果函数被join过或detach过，则返回false，表示线程不再受std::thread的管理。如果线程仍然在线且未被join或detach，则返回true。
@@ -82,11 +85,42 @@ int example1()
 int example2()
 {
     std::cout << "hi,I'm in example2." << std::endl;
-    std::thread print_thread(print_thread_cb);
+    std::thread print_thread(print_thread_cb); //当创建线程时，函数对象会被copy到线程的存储器中.
     print_thread.detach();
     std::cout << print_thread.joinable() << std::endl; // 输出0，表示线程已经被detach，不再受std::thread的管理
     return 0;
 }
+
+
+/** 案例3， 函数对象的线程创建
+ * 
+ */
+class ThreadObj //这就是一个函数对象，通过重构operation方法来实现类似函数调用的效果.
+{
+public:
+    void operator()()
+    {
+        for (int i = 0; i < 5; ++i)
+        {
+            std::cout << "Thread is running: " << i << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+};
+
+void example3()
+{
+    std::cout << "hi,I'm in example3." << std::endl;
+    ThreadObj thread_obj;
+    std::thread print_thread(thread_obj);// 这里是接受一个实例来创建线程。
+    // std::thread print_thread(ThreadObj()); // 这是错误的写法，编译器会认为这是一个函数声明。
+    // 同样的 int func(int()); 中的int()被看作是一个无参数但是返回类型是int的函数。
+    // std::thread print_thread((ThreadObj())); // 这是正确的写法，这里是一个临时对象
+    // std::thread print_thread{ThreadObj()}; // 这也是一种正确的写法.
+    print_thread.detach();
+    std::cout << print_thread.joinable() << std::endl; // 输出0，表示线程已经被detach，不再受std::thread的管理
+}
+
 
 
 int main()
