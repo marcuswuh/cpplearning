@@ -1,3 +1,5 @@
+# for prj
+*.exe
 # for linux 
 *.swp
 
