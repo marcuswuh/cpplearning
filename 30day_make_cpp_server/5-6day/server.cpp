@@ -1,9 +1,9 @@
 #include "lib/server.hpp"
-#include "lib/event_loop.hpp"
+
 int main()
 {
-    EventLoop loop;
-    Server server(&loop);
-    loop.Loop();
+    auto loop = std::make_shared<EventLoop>();
+    auto server = std::make_unique<Server>(loop);
+    loop->Loop();
     return 0;
 }

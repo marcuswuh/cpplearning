@@ -40,16 +40,20 @@ public:
         }
     }
 
-    /* 获取事件回调并返回，阻塞函数 */
-    std::pair<int, std::vector<epoll_event>> Poll()
+    /* 阻塞等待事件，返回就绪数量；事件存放在内部缓冲区，下次 Poll 前有效 */
+    int Poll()
     {
         int nfds = epoll_wait(epollfd_, events_, size_events_, -1);
         if (nfds < 0)
         {
             perror("epoll_wait");
-            return std::make_pair(-1, std::vector<epoll_event>());
         }
-        return std::make_pair(nfds, std::vector<epoll_event>(events_, events_ + nfds));
+        return nfds;
+    }
+
+    const epoll_event& Event(int index) const
+    {
+        return events_[index];
     }
 
     /* 注册事件到epoll */
@@ -90,21 +94,8 @@ private:
 class EventLoop
 {
 public:
-    EventLoop(int size_events = 1024):
-    size_events_(size_events)
-    {
-        epollfd_ = epoll_create1(0);
-        if(epollfd_ < 0)perror("epoll_create");
-    }
-    ~EventLoop()
-    {
-        if(epollfd_ != -1)
-        {
-            close(epollfd_);
-        }
-    }
-    
-    /* 更新事件到epoll */
+    EventLoop(int size_events = 1024) : size_events_(size_events) {}
+
     void UpdateChannel(Channel& channel)
     {
         if (channel.IsRegistered())
@@ -123,26 +114,31 @@ public:
         if (channel.IsRegistered())
         {
             epoll_.RemoveEpoll(channel.GetSocketFD());
+            channel.SetRegisteredFalse();
         }
         else
         {
             std::cout << "Channel is not registered" << std::endl;
-            return;
         }
     }
 
-    std::vector<Channel> PollChannels()
+    /* 返回就绪 Channel 指针（不拷贝 Channel 对象） */
+    std::vector<Channel*> PollChannels()
     {
-        std::pair<int, std::vector<epoll_event>> result = epoll_.Poll();
-        if (result.first < 0)
+        int nfds = epoll_.Poll();
+        if (nfds < 0)
         {
-            return std::vector<Channel>();
+            return {};
         }
 
-        std::vector<Channel> channels;
-        for(int i = 0; i < result.first; i++)
+        std::vector<Channel*> channels;
+        channels.reserve(static_cast<size_t>(nfds));
+        for (int i = 0; i < nfds; i++)
         {
-            channels.push_back(*static_cast<Channel*>(result.second[i].data.ptr));
+            const epoll_event& ev = epoll_.Event(i);
+            auto* channel = static_cast<Channel*>(ev.data.ptr);
+            channel->SetRevents(ev.events);
+            channels.push_back(channel);
         }
         return channels;
     }
@@ -152,23 +148,32 @@ public:
     {
         while (true)
         {
-            std::vector<Channel> channels = PollChannels();
-            for(auto& channel : channels)
+            int nfds = epoll_.Poll();
+            if (nfds < 0)
             {
-                channel.HandlerReadEvent();
+                continue;
+            }
+            for (int i = 0; i < nfds; i++)
+            {
+                const epoll_event& ev = epoll_.Event(i);
+                auto* channel = static_cast<Channel*>(ev.data.ptr);
+                channel->SetRevents(ev.events);
+                channel->HandlerReadEvent();
             }
         }
     }
 
 private:
-    int epollfd_; // epoll fd
     Epoll epoll_;
-    int size_events_; // epoll events size
+    int size_events_;
 };
 
 inline void Channel::EnableReadingEvent()
 {
     SetRegisteredEvents(EPOLLIN | EPOLLET);
     CHECK_RV(fcntl(GetSocketFD(), F_SETFL, O_NONBLOCK) >= 0, "fcntl");
-    loop_->UpdateChannel(*this);
+    if(auto loop = loop_.lock())
+    {
+        loop->UpdateChannel(*this);
+    }
 }

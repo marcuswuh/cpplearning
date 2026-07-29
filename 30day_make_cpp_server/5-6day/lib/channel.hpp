@@ -6,13 +6,14 @@
  */
 #include <functional>
 #include <cstdint>
+#include <memory>
 
 class EventLoop;
 
 class Channel
 {
 public:
-    Channel(int sfd, EventLoop* loop) : sfd_(sfd), loop_(loop) {}
+    Channel(int sfd, std::shared_ptr<EventLoop> loop) : sfd_(sfd), loop_(loop) {}
 
     void SetReadCallback(const std::function<void()>& read_callback)
     {
@@ -54,6 +55,11 @@ public:
         is_registered_ = true;
     }
 
+    void SetRegisteredFalse()
+    {
+        is_registered_ = false;
+    }
+
     void SetRegisteredEvents(uint32_t events)
     {
         regievents_ = events;
@@ -67,5 +73,5 @@ private:
     int revents_ = 0;
     std::function<void()> read_callback_;
     bool is_registered_ = false;
-    EventLoop* loop_;
+    std::weak_ptr<EventLoop> loop_;
 };
