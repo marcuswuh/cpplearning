@@ -1,0 +1,5 @@
+1. 新增一个Acceptor类，为server端处理新client的连接请求。持有SocketTCP类，SocketTCP仅保留对fd操作的封装，业务逻辑抽到Acceptor里面。
+2. 新增一个Connection类，专门用来处理client的后续请求。原先在Server类中的业务逻辑抽象到Connection类中。Connection类和Acceptor类平级，能力类似只是负责的业务不同。
+3. 进一步抽象channel的责任，channel只作为事件回调和事件参数的管理器。
+3. 新增一个Buffer类，专门用来缓存数据，并且实现时读写缓存分开。可以是仅在发生读写时使用。
+4. Channel类仍然是连接socket fd和eventloop的桥梁，提供socket业务到事件循环的底层能力，被Acceptor和Connection持有。
